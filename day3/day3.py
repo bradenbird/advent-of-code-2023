@@ -94,6 +94,15 @@ def test_get_part_numbers():
     res = get_part_numbers("", 1)
     assert len(res) == 0
 
+    res = get_part_numbers("1.2", 1)
+    assert len(res) == 2
+    assert res[0].start_col == 0
+    assert res[0].end_col == 0
+    assert res[0].value == 1
+    assert res[1].start_col == 2
+    assert res[1].end_col == 2
+    assert res[1].value == 2
+
     res = get_part_numbers("123", 1)
     assert len(res) == 1
     # Check the row part once, just to make sure it is being used. Can skip for future checks below
@@ -128,6 +137,72 @@ def test_get_part_numbers():
     assert res[1].start_col == 5
     assert res[1].end_col == 7
     assert res[1].value == 456
+
+
+def valid_part_number(grid: Grid, part_number: PartNumber):
+    """
+    Need to check the spots marked with X for the number `12`:
+    ```
+    XXXX.
+    X12X.
+    XXXX.
+    ```
+    """
+
+    # First, build the list of places to check
+    locations = []
+    # left and right of number added first
+    locations.append((part_number.row, part_number.start_col - 1))
+    locations.append((part_number.row, part_number.end_col + 1))
+    # Then add the 'rows' above and below the number (4 X's in the example above)
+    for col in range(part_number.start_col - 1, part_number.end_col + 2):
+        locations.append((part_number.row - 1, col))
+        locations.append((part_number.row + 1, col))
+
+    # Once we have the list, iterate through it until we find a symbol
+    for row, col in locations:
+        if not within_grid(grid, row, col):
+            continue
+        if is_symbol(grid.rows[row][col]):
+            # Can exit early here as we found an adjacent symbol
+            return True
+    # No symbol found
+    return False
+
+
+def test_valid_part_number():
+    # Test diagonal symbols
+    grid = Grid(["1.2", ".*.", "3.4"], height=3, width=3)
+    part1 = PartNumber(0, 0, 0, 1)
+    part2 = PartNumber(0, 2, 2, 2)
+    part3 = PartNumber(2, 0, 0, 3)
+    part4 = PartNumber(2, 2, 2, 4)
+    assert valid_part_number(grid, part1) is True
+    assert valid_part_number(grid, part2) is True
+    assert valid_part_number(grid, part3) is True
+    assert valid_part_number(grid, part4) is True
+
+    # Test direct-neighbor numbers
+    grid = Grid([".1.", "2*3", ".4."], height=3, width=3)
+    part1 = PartNumber(0, 1, 1, 1)
+    part2 = PartNumber(1, 0, 0, 2)
+    part3 = PartNumber(1, 2, 2, 3)
+    part4 = PartNumber(2, 1, 1, 4)
+    assert valid_part_number(grid, part1) is True
+    assert valid_part_number(grid, part2) is True
+    assert valid_part_number(grid, part3) is True
+    assert valid_part_number(grid, part4) is True
+
+    # Test no-neighbors
+    grid = Grid([".....", ".123.", "....."], height=3, width=5)
+    part1 = PartNumber(1, 1, 4, 123)
+    assert valid_part_number(grid, part1) is False
+
+
+def only_valid_part_numbers(
+    grid: Grid, part_numbers: list[PartNumber]
+) -> list[PartNumber]:
+    return [x for x in part_numbers if valid_part_number(x)]
 
 
 def solution(data: str, part_two: bool) -> int:
