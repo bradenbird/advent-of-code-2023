@@ -1,5 +1,6 @@
 from argparse import ArgumentParser
 from collections import defaultdict
+import math
 import re
 
 LIMITS = defaultdict(int, {
@@ -11,32 +12,48 @@ LIMITS = defaultdict(int, {
 # compile all patterns only once
 LINE_PATTERN = re.compile(r'^Game (\d+):(.*)$')
 
-def valid_input(grab):
+def create_block_dict(grab: str) -> dict[str, int]:
+    # First, pull out the count and color
     count_colors = [x.strip().split(' ') for x in grab.split(',')]
-    for count, color in count_colors:
-        if int(count) > LIMITS[color]:
+    # Then make it in a dictionary, so we can handle this easier
+    return {color: int(count) for count, color in count_colors}
+
+# Used for part 1, along with the static `LIMITS`
+def valid_input(color_counts: dict[str, int]) -> bool:
+    for color, count  in color_counts.items():
+        if count > LIMITS[color]:
             return False
     return True
 
-def parse_line(line: str) -> int:
+def parse_line(line: str, part_two: bool) -> int:
     match = LINE_PATTERN.match(line)
     if match is None:
         print('Error, shouldn\'t happen')
         return 0
     num, remainder = match.group(1, 2)
     num = int(num)
-    # Each grab from the bag needs to be checked against the maximums of each color
+    # Split into each observation of bag contents
     individual_grabs = remainder.split(';')
 
+    # Going to keep logic running to calculate both ways, then just return the result based on `part_two`
+    min_counts = defaultdict(int)
     valid = True
     for grab in individual_grabs:
-        valid &= valid_input(grab)
-    return num if valid else 0
+        blocks = create_block_dict(grab)
+        valid &= valid_input(blocks)
+        # Update the minimum count of each block needed.
+        for color, count in blocks.items():
+            min_counts[color] = max(min_counts[color], count)
+
+    if part_two:
+        return math.prod(min_counts.values())
+    else:
+        return num if valid else 0
     
-def solution(data: str) -> int:
+def solution(data: str, part_two: bool) -> int:
     total = 0
     for line in data.split('\n'):
-        total += parse_line(line)
+        total += parse_line(line, part_two)
     return total
 
 def main():
@@ -46,6 +63,13 @@ def main():
         '--filename',
         default=None,
         help='Filename containing input data. If not provided, uses the example from the problem',
+    )
+
+    parser.add_argument(
+        '--part-two',
+        default=False,
+        action='store_true',
+        help='To produce output for the part2 version of this problem',
     )
 
     args = parser.parse_args()
@@ -60,7 +84,7 @@ Game 5: 6 red, 1 blue, 3 green; 2 blue, 1 red, 2 green'''
         with open(args.filename) as f:
             data = f.read()
     
-    output = solution(data)
+    output = solution(data, args.part_two)
     
     print(f'Solution: {output}')
 
