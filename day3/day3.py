@@ -60,11 +60,9 @@ def get_part_numbers(line: str, row_num: int) -> list[PartNumber]:
     while index < length:
         char = line[index]
         if char.isdigit():
-            print(f"digit at {index}, num_start={num_start}")
             if num_start is None:
                 num_start = index
         else:
-            print(f"no digit at {index}")
             if num_start is not None:
                 part_nums.append(
                     PartNumber(
@@ -202,11 +200,22 @@ def test_valid_part_number():
 def only_valid_part_numbers(
     grid: Grid, part_numbers: list[PartNumber]
 ) -> list[PartNumber]:
-    return [x for x in part_numbers if valid_part_number(x)]
+    return [x for x in part_numbers if valid_part_number(grid, x)]
 
 
 def solution(data: str, part_two: bool) -> int:
+    possible_part_nums = []
+    grid = Grid(data.split('\n'), 0, 0)
+    grid.height = len(grid.rows)
+    grid.width = len(grid.rows[0])
+
+    for i in range(grid.height):
+        possible_part_nums.extend(get_part_numbers(grid.rows[i], i))
+    valid_part_nums = only_valid_part_numbers(grid, possible_part_nums)
+
     total = 0
+    for part in valid_part_nums:
+        total += part.value
     return total
 
 
