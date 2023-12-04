@@ -2,12 +2,41 @@ from argparse import ArgumentParser
 from dataclasses import dataclass
 
 
-@dataclass
 class PartNumber:
-    row: int
-    start_col: int
-    end_col: int
-    value: int
+    def __init__(self, row, start_col, end_col, value):
+        self.row: int = row
+        self.start_col: int = start_col
+        self.end_col: int = end_col
+        self.value: int = value
+
+    def is_gear_connected(self, row, col) -> bool:
+        """
+        If the specified gear location is connected to this part
+        """
+        # if it is within the +/- 1 boundary of our number, it is connected
+        return (
+            self.row - 1 <= row <= self.row + 1
+            and self.start_col - 1 <= col <= self.end_col + 1
+        )
+
+    def __eq__(self, other) -> bool:
+        return (
+            self.row == other.row
+            and self.start_col == other.start_col
+            and self.end_col == other.end_col
+            and self.value == other.value
+        )
+
+    def __ne__(self, other) -> bool:
+        return not self.__eq__(other)
+
+    def __hash__(self):
+        return (
+            hash(self.row)
+            + hash(self.start_col)
+            + hash(self.end_col)
+            + hash(self.value)
+        )
 
 
 @dataclass
@@ -15,6 +44,12 @@ class Grid:
     rows: list[str]
     height: int
     width: int
+
+
+@dataclass
+class FindGearResult:
+    found: bool
+    gears: list[tuple[int, int]]
 
 
 def is_symbol(char: str) -> bool:
@@ -137,17 +172,7 @@ def test_get_part_numbers():
     assert res[1].value == 456
 
 
-def valid_part_number(grid: Grid, part_number: PartNumber):
-    """
-    Need to check the spots marked with X for the number `12`:
-    ```
-    XXXX.
-    X12X.
-    XXXX.
-    ```
-    """
-
-    # First, build the list of places to check
+def get_check_locations(part_number: PartNumber) -> list[tuple[int, int]]:
     locations = []
     # left and right of number added first
     locations.append((part_number.row, part_number.start_col - 1))
@@ -156,6 +181,20 @@ def valid_part_number(grid: Grid, part_number: PartNumber):
     for col in range(part_number.start_col - 1, part_number.end_col + 2):
         locations.append((part_number.row - 1, col))
         locations.append((part_number.row + 1, col))
+    return locations
+
+
+def valid_part_number(grid: Grid, part_number: PartNumber):
+    """
+    Need to check the spots marked with X for a symbol around the number `12`:
+    ```
+    XXXX.
+    X12X.
+    XXXX.
+    ```
+    """
+
+    locations = get_check_locations(part_number)
 
     # Once we have the list, iterate through it until we find a symbol
     for row, col in locations:
@@ -203,9 +242,46 @@ def only_valid_part_numbers(
     return [x for x in part_numbers if valid_part_number(grid, x)]
 
 
+def find_gears_for_part(grid: Grid, part_number: PartNumber) -> FindGearResult:
+    locations = get_check_locations(part_number)
+    gears = []
+    # Once we have the list, iterate through it until we find a symbol
+    for row, col in locations:
+        if not within_grid(grid, row, col):
+            continue
+        if grid.rows[row][col] == "*":
+            gears.append((row, col))
+    return FindGearResult(len(gears) != 0, gears)
+
+
+def possible_gears(grid: Grid, part_list: list[PartNumber]) -> set[tuple[int, int]]:
+    maybe_gears = set()
+    for part_number in part_list:
+        res = find_gears_for_part(grid, part_number)
+        if res.found:
+            for gear in res.gears:
+                maybe_gears.add(gear)
+    return maybe_gears
+
+
+def test_possible_gears():
+    grid = Grid([".1.", ".*.", "..2"], 3, 3)
+    part_list = [PartNumber(0, 1, 1, 1), PartNumber(2, 2, 2, 2)]
+    gears = possible_gears(grid, part_list)
+    assert len(gears) == 1
+    assert (1, 1) in gears
+
+    grid = Grid(["*1*", ".*.", "..2"], 3, 3)
+    gears = possible_gears(grid, part_list)
+    assert len(gears) == 3
+    assert (1, 1) in gears
+    assert (0, 0) in gears
+    assert (0, 2) in gears
+
+
 def solution(data: str, part_two: bool) -> int:
     possible_part_nums = []
-    grid = Grid(data.split('\n'), 0, 0)
+    grid = Grid(data.split("\n"), 0, 0)
     grid.height = len(grid.rows)
     grid.width = len(grid.rows[0])
 
@@ -214,8 +290,20 @@ def solution(data: str, part_two: bool) -> int:
     valid_part_nums = only_valid_part_numbers(grid, possible_part_nums)
 
     total = 0
-    for part in valid_part_nums:
-        total += part.value
+    if part_two:
+        # todo: probably should move to its own function so it could be tested
+        part_nums_set = set(valid_part_nums)
+        gears = possible_gears(grid, valid_part_nums)
+        for gear_row, gear_col in gears:
+            matching_parts: list[PartNumber] = []
+            for part in part_nums_set:
+                if part.is_gear_connected(gear_row, gear_col):
+                    matching_parts.append(part)
+            if len(matching_parts) == 2:
+                total += matching_parts[0].value * matching_parts[1].value
+    else:
+        for part in valid_part_nums:
+            total += part.value
     return total
 
 
