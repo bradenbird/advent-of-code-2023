@@ -9,6 +9,11 @@ class ScratchCard:
     card_nums: list[int]
     card_id: int
 
+@dataclass
+class CardResult:
+    card_num: int
+    matching_nums: int
+    single_card_value: int
 
 # compile all patterns only once
 LINE_PATTERN = re.compile(r"^Card[ ]+(\d+):(.*)$")
@@ -40,30 +45,40 @@ def test_parse_line():
     assert res.winning_nums == {41, 48, 83, 86, 17}
 
 
-def get_card_value(line: str) -> int:
+def score_card(line: str) -> CardResult:
     card = parse_line(line)
     matching_nums = 0
     for num in card.card_nums:
         if num in card.winning_nums:
             matching_nums += 1
     if matching_nums <= 1:
-        return matching_nums
-    return 2 ** (matching_nums - 1)
+        return CardResult(card.card_id, matching_nums, matching_nums)
+    return CardResult(card.card_id, matching_nums, 2 ** (matching_nums - 1))
 
 
-def test_get_card_value():
-    assert get_card_value("Card 1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53") == 8
-    assert get_card_value("Card 2: 13 32 20 16 61 | 61 30 68 82 17 32 24 19") == 2
-    assert get_card_value("Card 3:  1 21 53 59 44 | 69 82 63 72 16 21 14  1") == 2
-    assert get_card_value("Card 4: 41 92 73 84 69 | 59 84 76 51 58  5 54 83") == 1
-    assert get_card_value("Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36") == 0
-    assert get_card_value("Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11") == 0
+def test_score_card():
+    assert score_card("Card 1: 41 48 83 86 17 | 83 86  6 31 17  9 48 53") == CardResult(1, 4, 8)
+    assert score_card("Card 2: 13 32 20 16 61 | 61 30 68 82 17 32 24 19") == CardResult(2, 2, 2)
+    assert score_card("Card 3:  1 21 53 59 44 | 69 82 63 72 16 21 14  1") == CardResult(3, 2, 2)
+    assert score_card("Card 4: 41 92 73 84 69 | 59 84 76 51 58  5 54 83") == CardResult(4, 1, 1)
+    assert score_card("Card 5: 87 83 26 28 32 | 88 30 70 12 93 22 82 36") == CardResult(5, 0, 0)
+    assert score_card("Card 6: 31 18 13 56 72 | 74 77 10 23 35 67 36 11") == CardResult(6, 0, 0)
 
 
 def solution(data: str, part_two: bool) -> int:
     total = 0
-    for line in data.split("\n"):
-        total += get_card_value(line)
+    lines = data.split("\n")
+    card_counts = [1] * (len(lines) + 1)
+    for line in lines:
+        res = score_card(line)
+        if part_two:
+            # Add to card_counts by the number of cards we had for this one for the next `matching_nums` cards
+            for i in range(res.card_num + 1, res.card_num + 1 + res.matching_nums):
+                card_counts[i] += card_counts[res.card_num]
+        else:
+            total += res.single_card_value
+    if part_two:
+        total = sum(card_counts[1:])
     return total
 
 
