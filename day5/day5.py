@@ -80,8 +80,10 @@ def test_apply_mapping():
         [79, 14, 55, 13], [MappedRange(50, 98, 2), MappedRange(52, 50, 48)]
     ) == [81, 14, 57, 13]
     assert apply_mapping(
-        [81, 14, 57, 13], [MappedRange(0, 15, 37), MappedRange(37, 52, 2), MappedRange(39, 0, 15)]
+        [81, 14, 57, 13],
+        [MappedRange(0, 15, 37), MappedRange(37, 52, 2), MappedRange(39, 0, 15)],
     ) == [81, 53, 57, 52]
+
 
 def solution(data: str, part_two: bool) -> int:
     data_split = data.split("\n\n")
