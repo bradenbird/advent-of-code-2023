@@ -212,7 +212,9 @@ def test_parse_mappings():
     ) == [MappedRange(Range(5, 2), -4), MappedRange(Range(45, 19), 36)]
 
 
-def apply_mapping(current_ranges: list[Range], mappings: list[MappedRange]) -> list[Range]:
+def apply_mapping(
+    current_ranges: list[Range], mappings: list[MappedRange]
+) -> list[Range]:
     # For each mapping group, process all of `current_ranges` once. If a range has been transformed, put it into `next_ranges`
     next_ranges: list[Range] = []
     unmapped_ranges: list[Range] = []
@@ -226,11 +228,12 @@ def apply_mapping(current_ranges: list[Range], mappings: list[MappedRange]) -> l
                 unmapped_ranges.append(res.unchanged)
         current_ranges = unmapped_ranges
         unmapped_ranges = []
-        
+
     # If we still have values in `current_ranges`, they weren't applied to any mapping.
     # Put into next_ranges as-is
     next_ranges.extend(current_ranges)
     return next_ranges
+
 
 def test_apply_mapping():
     current_ranges = [Range(79, 14), Range(55, 13)]
@@ -241,16 +244,26 @@ def test_apply_mapping():
     assert new_ranges == [Range(81, 14), Range(57, 13)]
 
     current_ranges = new_ranges
-    mappings = [MappedRange(Range(15, 37), -15), MappedRange(Range(52, 2), -15), MappedRange(Range(0, 15), 39)]
+    mappings = [
+        MappedRange(Range(15, 37), -15),
+        MappedRange(Range(52, 2), -15),
+        MappedRange(Range(0, 15), 39),
+    ]
     new_ranges = apply_mapping(current_ranges, mappings)
     assert len(new_ranges) == 2
     assert new_ranges == [Range(81, 14), Range(57, 13)]
 
     current_ranges = new_ranges
-    mappings = [MappedRange(Range(53, 8), -4), MappedRange(Range(11, 42), -11), MappedRange(Range(0, 7), 42), MappedRange(Range(7, 4), 50)]
+    mappings = [
+        MappedRange(Range(53, 8), -4),
+        MappedRange(Range(11, 42), -11),
+        MappedRange(Range(0, 7), 42),
+        MappedRange(Range(7, 4), 50),
+    ]
     new_ranges = apply_mapping(current_ranges, mappings)
     assert len(new_ranges) == 3
     assert new_ranges == [Range(53, 4), Range(81, 14), Range(61, 9)]
+
 
 def solution(data: str) -> int:
     data_split = data.split("\n\n")
