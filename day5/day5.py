@@ -151,6 +151,11 @@ humidity-to-location map:
         with open(args.filename) as f:
             data = f.read()
 
+    if args.part_two:
+        print(
+            "Part 2 for this problem is found in day5_part2.py, sorry for the inconvenience!"
+        )
+        return
     output = solution(data, args.part_two)
 
     print(f"Solution: {output}")
