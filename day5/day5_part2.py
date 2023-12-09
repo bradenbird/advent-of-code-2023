@@ -1,6 +1,7 @@
 # Moved part 2 out into a different file since the approach completely changed
 from argparse import ArgumentParser
 from dataclasses import dataclass
+from collections import deque
 import re
 
 # compile all patterns only once
@@ -20,6 +21,18 @@ class Range:
         self.start = start
         self.length = length
         self.end = start + length
+
+    def __lt__(self, other):
+        return self.start < other.start
+
+    def __gt__(self, other):
+        return self.start > other.start
+
+    def __le__(self, other):
+        return self.start <= other.start
+
+    def __ge__(self, other):
+        return self.start >= other.start
 
 
 def test_range_constructor():
@@ -124,31 +137,50 @@ def apply_transform(
 
 def test_apply_transform():
     # No transform applied
-    assert apply_transform(Range(0, 10), MappedRange(Range(100, 3), 100)) == TransformResult(unchanged=Range(0, 10))
-    assert apply_transform(Range(0, 10), MappedRange(Range(10, 3), 100)) == TransformResult(unchanged=Range(0, 10))
+    assert apply_transform(
+        Range(0, 10), MappedRange(Range(100, 3), 100)
+    ) == TransformResult(unchanged=Range(0, 10))
+    assert apply_transform(
+        Range(0, 10), MappedRange(Range(10, 3), 100)
+    ) == TransformResult(unchanged=Range(0, 10))
 
     # Lower remainder only
-    assert apply_transform(Range(0, 11), MappedRange(Range(10, 3), 100)) == TransformResult(transformed_range=Range(110, 1), remainders=[Range(0,10)])
+    assert apply_transform(
+        Range(0, 11), MappedRange(Range(10, 3), 100)
+    ) == TransformResult(transformed_range=Range(110, 1), remainders=[Range(0, 10)])
 
     # Upper remainder only
-    assert apply_transform(Range(0, 11), MappedRange(Range(0, 1), 100)) == TransformResult(transformed_range=Range(100, 1), remainders=[Range(1,10)])
+    assert apply_transform(
+        Range(0, 11), MappedRange(Range(0, 1), 100)
+    ) == TransformResult(transformed_range=Range(100, 1), remainders=[Range(1, 10)])
 
     # Both sides remainder
-    assert apply_transform(Range(0, 11), MappedRange(Range(5, 2), 100)) == TransformResult(transformed_range=Range(105, 2), remainders=[Range(0, 5), Range(7,4)])
+    assert apply_transform(
+        Range(0, 11), MappedRange(Range(5, 2), 100)
+    ) == TransformResult(
+        transformed_range=Range(105, 2), remainders=[Range(0, 5), Range(7, 4)]
+    )
 
 
-def get_starting_values(line: str) -> list[Range]:
+def get_starting_ranges(line: str) -> list[Range]:
     match = SEEDS_PATTERN.match(line)
     if match is None:
         print("Error: regex didn't match for seeds")
         return []
-    return [int(x) for x in match.group(1).split(" ")]
+    values = [int(x) for x in match.group(1).split(" ")]
+    output = []
+    for i in range(0, len(values), 2):
+        output.append(Range(values[i], values[i + 1]))
+    return output
 
 
-def test_get_starting_values():
-    assert get_starting_values("seeds: 1 2 3") == [1, 2, 3]
-    assert get_starting_values("seeds: 1 2 3 12 23") == [1, 2, 3, 12, 23]
-    assert get_starting_values("seeds: 1") == [1]
+def test_get_starting_ranges():
+    assert get_starting_ranges("seeds: 1 2 3 4") == [Range(1, 2), Range(3, 4)]
+    assert get_starting_ranges("seeds: 0 100 200 10 150 25") == [
+        Range(0, 100),
+        Range(200, 10),
+        Range(150, 25),
+    ]
 
 
 def parse_mapping(data: str) -> list[MappedRange]:
@@ -157,32 +189,78 @@ def parse_mapping(data: str) -> list[MappedRange]:
     if match is None:
         print("Error: regex didn't match for map")
         return output
-    # for line in match.group(1).split("\n"):
-    #     dest_start, source_start, duration = line.split(" ")
-    #     output.append(MappedRange(int(dest_start), int(source_start), int(duration)))
+    for line in match.group(1).split("\n"):
+        dest_start, source_start, duration = line.split(" ")
+        output.append(
+            MappedRange(
+                Range(int(source_start), int(duration)),
+                int(dest_start) - int(source_start),
+            )
+        )
     return output
 
 
-# def test_parse_mappings():
-#     assert parse_mapping(
-#         """water-to-light map:
-# 1 5 2"""
-#     ) == [MappedRange(1, 5, 2)]
-#     assert parse_mapping(
-#         """light-to-temperature map:
-# 1 5 2
-# 81 45 19"""
-#     ) == [MappedRange(1, 5, 2), MappedRange(81, 45, 19)]
+def test_parse_mappings():
+    assert parse_mapping(
+        """water-to-light map:
+1 5 2"""
+    ) == [MappedRange(Range(5, 2), -4)]
+    assert parse_mapping(
+        """light-to-temperature map:
+1 5 2
+81 45 19"""
+    ) == [MappedRange(Range(5, 2), -4), MappedRange(Range(45, 19), 36)]
 
+
+def apply_mapping(current_ranges: list[Range], mappings: list[MappedRange]) -> list[Range]:
+    # For each mapping group, process all of `current_ranges` once. If a range has been transformed, put it into `next_ranges`
+    next_ranges: list[Range] = []
+    unmapped_ranges: list[Range] = []
+    for mapping in mappings:
+        for range_to_check in current_ranges:
+            res: TransformResult = apply_transform(range_to_check, mapping)
+            if res.transformed():
+                unmapped_ranges.extend(res.remainders)
+                next_ranges.append(res.transformed_range)
+            else:
+                unmapped_ranges.append(res.unchanged)
+        current_ranges = unmapped_ranges
+        unmapped_ranges = []
+        
+    # If we still have values in `current_ranges`, they weren't applied to any mapping.
+    # Put into next_ranges as-is
+    next_ranges.extend(current_ranges)
+    return next_ranges
+
+def test_apply_mapping():
+    current_ranges = [Range(79, 14), Range(55, 13)]
+    mappings = [MappedRange(Range(98, 2), -48), MappedRange(Range(50, 48), 2)]
+
+    new_ranges = apply_mapping(current_ranges, mappings)
+    assert len(new_ranges) == 2
+    assert new_ranges == [Range(81, 14), Range(57, 13)]
+
+    current_ranges = new_ranges
+    mappings = [MappedRange(Range(15, 37), -15), MappedRange(Range(52, 2), -15), MappedRange(Range(0, 15), 39)]
+    new_ranges = apply_mapping(current_ranges, mappings)
+    assert len(new_ranges) == 2
+    assert new_ranges == [Range(81, 14), Range(57, 13)]
+
+    current_ranges = new_ranges
+    mappings = [MappedRange(Range(53, 8), -4), MappedRange(Range(11, 42), -11), MappedRange(Range(0, 7), 42), MappedRange(Range(7, 4), 50)]
+    new_ranges = apply_mapping(current_ranges, mappings)
+    assert len(new_ranges) == 3
+    assert new_ranges == [Range(53, 4), Range(81, 14), Range(61, 9)]
 
 def solution(data: str) -> int:
     data_split = data.split("\n\n")
-    values = get_starting_values(data_split[0])
-    # for i in range(1, len(data_split)):
-    #     mappings = parse_mapping(data_split[i])
-    #     values = apply_mapping(values, mappings)
+    current_ranges = get_starting_ranges(data_split[0])
+    for i in range(1, len(data_split)):
+        current_ranges = apply_mapping(current_ranges, parse_mapping(data_split[i]))
+        # TODO: maybe need to merge overlapping intervals at this point to reduce future iteration complexities?
 
-    return min(values)
+    # Now, just get the smallest range's starting value to get the lowest number possible after all mappings were completed
+    return min(current_ranges).start
 
 
 def main():
