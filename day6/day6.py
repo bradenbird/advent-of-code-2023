@@ -13,20 +13,46 @@ class Race:
     record_distance: int
 
 
-def parse_input(data: str) -> list[Race]:
+def parse_input(data: str, part_two: bool) -> list[Race]:
     times, distances = data.split("\n")
-
-    times = [int(x) for x in LINE_PATTERN.match(times).group(1).split(" ") if x != ""]
-    distances = [
-        int(x) for x in LINE_PATTERN.match(distances).group(1).split(" ") if x != ""
-    ]
+    if part_two:
+        times = [
+            int(
+                "".join(
+                    [
+                        x
+                        for x in LINE_PATTERN.match(times).group(1).split(" ")
+                        if x != ""
+                    ]
+                )
+            )
+        ]
+        distances = [
+            int(
+                "".join(
+                    [
+                        x
+                        for x in LINE_PATTERN.match(distances).group(1).split(" ")
+                        if x != ""
+                    ]
+                )
+            )
+        ]
+    else:
+        times = [
+            int(x) for x in LINE_PATTERN.match(times).group(1).split(" ") if x != ""
+        ]
+        distances = [
+            int(x) for x in LINE_PATTERN.match(distances).group(1).split(" ") if x != ""
+        ]
     return [Race(x, y) for x, y in zip(times, distances)]
 
 
 def test_parse_input():
     data = """Time:      7  15   30
 Distance:  9  40  200"""
-    assert parse_input(data) == [Race(7, 9), Race(15, 40), Race(30, 200)]
+    assert parse_input(data, False) == [Race(7, 9), Race(15, 40), Race(30, 200)]
+    assert parse_input(data, True) == [Race(71530, 940200)]
 
 
 def min_waiting_time(race: Race) -> int:
@@ -45,24 +71,10 @@ def test_min_waiting_time():
     assert min_waiting_time(Race(7, 10)) == 3
 
 
-def max_waiting_time(race: Race) -> int:
-    time = race.time_limit - 1
-    while time > 0:
-        distance = time * (race.time_limit - time)
-        if distance > race.record_distance:
-            return time
-        time -= 1
-    print("Error: unable to beat the record!")
-    return 0
-
-
-def test_max_waiting_time():
-    assert max_waiting_time(Race(7, 9)) == 5
-    assert max_waiting_time(Race(7, 10)) == 4
-
-
 def num_ways_to_win(race: Race):
-    return max_waiting_time(race) - min_waiting_time(race) + 1
+    # Only need minimum waiting time since the the max waiting time decreases at the same rate when you increase the distance,
+    # meaning multiplying the min by 2 lets us avoid calculating the same number twice
+    return race.time_limit - (2 * min_waiting_time(race)) + 1
 
 
 def test_num_ways_to_win():
@@ -72,7 +84,7 @@ def test_num_ways_to_win():
 
 def solution(data: str, part_two: bool) -> int:
     ways = []
-    races = parse_input(data)
+    races = parse_input(data, part_two)
     for race in races:
         ways.append(num_ways_to_win(race))
     return math.prod(ways)
